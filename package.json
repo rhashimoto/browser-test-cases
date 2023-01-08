@@ -1,0 +1,14 @@
+{
+  "name": "browser-test-cases",
+  "version": "1.0.0",
+  "repository": "git@github.com:rhashimoto/browser-test-cases.git",
+  "author": "Roy Hashimoto <roy@shoestringresearch.com>",
+  "private": true,
+  "scripts": {
+    "start": "yarn web-dev-server"
+  },
+  "devDependencies": {
+    "@web/dev-server": "^0.1.35"
+  },
+  "packageManager": "yarn@3.3.1"
+}
