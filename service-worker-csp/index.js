@@ -11,5 +11,12 @@
     console.warn('service worker load failed', e);
   });
 
-  const worker = new Worker('./worker.js', { type: "module" });
+  const worker = new Worker(
+    './worker.js?import=worker-module&key=nomoresecrets',
+    { type: "module" });
+
+  navigator.serviceWorker.controller.postMessage('from window');
+  navigator.serviceWorker.addEventListener('message', event => {
+    console.log('Window message received', event);
+  });
 })();
