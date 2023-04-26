@@ -60,7 +60,7 @@ async function read_write(nBlocks, blockSize) {
     await time(`Writing and flushing ${nBlocks} blocks of ${blockSize} bytes...`, async () => {
       for (let i = 0; i < nBlocks; ++i) {
         accessHandle.write(block, { at: i * blockSize });
-        await accessHandle.flush();
+        accessHandle.flush();
       }
     });
 
@@ -73,7 +73,7 @@ async function read_write(nBlocks, blockSize) {
       }
     });
   } finally {
-    await accessHandle.close();
+    accessHandle.close();
     root.removeEntry(fileHandle.name);
   }
 }
