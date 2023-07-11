@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FileSystemFileHandle.move check</title>
+  <style>
+    pre { margin: 0 }
+  </style>
+</head>
+<body>
+  <h1>Testing for FileSystemFileHandle.move</h1>
+  <script>
+    const worker = new Worker('worker.js');
+    worker.addEventListener('message', ({data}) => {
+      const element = document.createElement('pre');
+      element.textContent = `${new Date().toLocaleString()} ${data}`;
+      document.body.appendChild(element);
+    });
+  </script>
+</body>
+</html>
