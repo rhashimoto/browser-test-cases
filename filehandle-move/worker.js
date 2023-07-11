@@ -4,7 +4,7 @@ globalThis.postMessage('worker started');
   try {
     const directoryHandle = await navigator.storage.getDirectory();
     globalThis.postMessage('obtained OPFS root');
-    for await (const [name] of directoryHandle) {
+    for await (const [name] of directoryHandle.entries()) {
       await directoryHandle.removeEntry(name, { recursive: true });
     }
 
@@ -12,7 +12,7 @@ globalThis.postMessage('worker started');
     globalThis.postMessage('opened/created file "foo"');
 
     globalThis.postMessage('listing directory contents...');
-    for await (const [name] of directoryHandle) {
+    for await (const [name] of directoryHandle.entries()) {
       globalThis.postMessage(`- ${name}`);
     }
 
@@ -27,7 +27,7 @@ globalThis.postMessage('worker started');
     globalThis.postMessage('moved "foo" to "bar"');
 
     globalThis.postMessage('listing directory contents...');
-    for await (const [name] of directoryHandle) {
+    for await (const [name] of directoryHandle.entries()) {
       globalThis.postMessage(`- ${name}`);
     }
   } catch (e) {
