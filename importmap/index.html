@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>importmap test</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "@bare": "./@bare/bare.js",
+        "@bare/": "./@bare/"
+      }
+    }
+  </script>
+  <style>
+    pre {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <script src="index.js" type="module"></script>
+</body>
+</html>
