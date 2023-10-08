@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>JSPI test</title>
+</head>
+<body>
+  <script type="module">
+    import ModuleFactory from './cfunc.mjs';
+    (async function() {
+      const module = ModuleFactory();
+      console.log(module);
+    })();
+  </script>
+</body>
+</html>
