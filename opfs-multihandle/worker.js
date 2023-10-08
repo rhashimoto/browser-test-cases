@@ -23,6 +23,19 @@ async function go() {
     log(`Creating sync handle ${i}...`);
     syncHandles.push(await handle.createSyncAccessHandle({ mode: 'readwrite-unsafe' }));
   }
+
+  log('Write data with sync handle 0...');
+  syncHandles[0].write(new TextEncoder().encode('hello').buffer, { at: 0 });
+  syncHandles[0].flush();
+
+  for (let i = 0; i < syncHandles.length; ++i) {
+    log(`Read data with sync handle ${i}...`);
+    const syncHandle = syncHandles[i];
+    const buffer = new Uint8Array(syncHandle.getSize());
+    const count = syncHandle.read(buffer.buffer, { at: 0 });
+    const text = new TextDecoder().decode(buffer);
+    log(`  ${text}`);
+  }
 }
 
 Promise.resolve().then(prepare)
