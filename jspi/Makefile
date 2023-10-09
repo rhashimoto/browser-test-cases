@@ -2,6 +2,7 @@ EMCC ?= emcc
 CFLAGS = -O0
 EMFLAGS = \
 	-s ALLOW_MEMORY_GROWTH=1 \
+	-s ASSERTIONS=1 \
 	-s ASYNCIFY=2 \
 	-s ASYNCIFY_EXPORTS='["cfunc"]' \
 	-s ASYNCIFY_IMPORTS='["jfunc"]' \
