@@ -1208,19 +1208,12 @@ function dbg(text) {
     };
   _fd_write.sig = 'iippp';
 
-  function foo_support() {
-  
-      _jfunc = function(x) {
-        console.log('jfunc called with', x);
-        return Promise.resolve(x * x);
-      }
-  
-      // This signature specification works, but is it correct?
-      _jfunc.sig = 'ii';
-      _jfunc.isAsync = true;
+  async function _jfunc(x) {
+      console.log('jfunc called with', x);
+      return x * x;
     }
-  function _jfunc(){}
   _jfunc.sig = 'ii';
+  _jfunc.isAsync = true;
 
   var runAndAbortIfError = (func) => {
       try {
@@ -1331,7 +1324,7 @@ function dbg(text) {
   runtimeKeepalivePop.sig = 'v';
   var Asyncify = {
   instrumentWasmImports(imports) {
-        var importPatterns = [/^jfunc$/,/^invoke_.*$/,/^fd_sync$/,/^__wasi_fd_sync$/,/^__asyncjs__.*$/,/^emscripten_promise_await$/,/^emscripten_idb_load$/,/^emscripten_idb_store$/,/^emscripten_idb_delete$/,/^emscripten_idb_exists$/,/^emscripten_idb_load_blob$/,/^emscripten_idb_store_blob$/,/^emscripten_sleep$/,/^emscripten_wget_data$/,/^emscripten_scan_registers$/,/^emscripten_lazy_load_code$/,/^_load_secondary_module$/,/^emscripten_fiber_swap$/,/^SDL_Delay$/];
+        var importPatterns = [/^jfunc$/,/^invoke_.*$/,/^fd_sync$/,/^__wasi_fd_sync$/,/^__asyncjs__.*$/,/^emscripten_promise_await$/,/^emscripten_idb_load$/,/^emscripten_idb_store$/,/^emscripten_idb_delete$/,/^emscripten_idb_exists$/,/^emscripten_idb_load_blob$/,/^emscripten_idb_store_blob$/,/^emscripten_sleep$/,/^emscripten_wget_data$/,/^emscripten_scan_registers$/,/^emscripten_lazy_load_code$/,/^_load_secondary_module$/,/^emscripten_fiber_swap$/,/^SDL_Delay$/,/^jfunc$/];
   
         for (var x in imports) {
           (function(x) {
@@ -1567,7 +1560,6 @@ function dbg(text) {
       ret = onDone(ret);
       return ret;
     };
-foo_support();
 function checkIncomingModuleAPI() {
   ignoredModuleProp('fetchSettings');
 }
@@ -1884,7 +1876,6 @@ var unexportedSymbols = [
   'GLFW',
   'allocateUTF8',
   'allocateUTF8OnStack',
-  'foo_support',
 ];
 unexportedSymbols.forEach(unexportedRuntimeSymbol);
 

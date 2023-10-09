@@ -9,6 +9,13 @@
   <script type="module">
     import ModuleFactory from './cfunc.mjs';
     (async function() {
+      // Workaround for JSPI API change.
+      if (!WebAssembly.Function.type) {
+        WebAssembly.Function.type = function(f) {
+          return f.type();
+        }
+      }
+      
       const module = await ModuleFactory();
       const result = module.ccall('cfunc', 'number', ['number'], [8], { async: true });
       console.log('result:', await result);
