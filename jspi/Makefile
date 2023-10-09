@@ -1,10 +1,12 @@
 EMCC ?= emcc
-CFLAGS =
+CFLAGS = -O0
 EMFLAGS = \
 	-s ALLOW_MEMORY_GROWTH=1 \
 	-s ASYNCIFY=2 \
+	-s ASYNCIFY_EXPORTS='["cfunc"]' \
 	-s ASYNCIFY_IMPORTS='["jfunc"]' \
 	-s ENVIRONMENT="web,worker" \
+	-s EXPORTED_RUNTIME_METHODS='["ccall"]' \
 	-s WASM=1
 
 .PHONY: all

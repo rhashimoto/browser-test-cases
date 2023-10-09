@@ -5,11 +5,13 @@
   <title>JSPI test</title>
 </head>
 <body>
+  Open the Dev Tools console.
   <script type="module">
     import ModuleFactory from './cfunc.mjs';
     (async function() {
-      const module = ModuleFactory();
-      console.log(module);
+      const module = await ModuleFactory();
+      const result = module.ccall('cfunc', 'number', ['number'], [8], { async: true });
+      console.log('result:', await result);
     })();
   </script>
 </body>
