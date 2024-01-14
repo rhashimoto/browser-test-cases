@@ -1,13 +1,14 @@
 EMCC ?= emcc
-CFLAGS = -O0
+CFLAGS = -g
 EMFLAGS = \
 	-s ALLOW_MEMORY_GROWTH=1 \
+	-s ALLOW_TABLE_GROWTH=1 \
 	-s ASSERTIONS=1 \
 	-s ASYNCIFY=2 \
-	-s ASYNCIFY_EXPORTS='["cfunc"]' \
-	-s ASYNCIFY_IMPORTS='["jfunc"]' \
+	-s ASYNCIFY_EXPORTS='["cfunc", "callcb"]' \
+	-s ASYNCIFY_IMPORTS='["jfunc", "atest"]' \
 	-s ENVIRONMENT="web,worker" \
-	-s EXPORTED_RUNTIME_METHODS='["ccall"]' \
+	-s EXPORTED_RUNTIME_METHODS='["addFunction", "ccall", "cwrap"]' \
 	-s WASM=1
 
 .PHONY: all

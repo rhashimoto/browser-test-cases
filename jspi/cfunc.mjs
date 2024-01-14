@@ -27,7 +27,7 @@ Module['ready'] = new Promise((resolve, reject) => {
   readyPromiseResolve = resolve;
   readyPromiseReject = reject;
 });
-["_main","_memory","_cfunc","___indirect_function_table","_fflush","onRuntimeInitialized"].forEach((prop) => {
+["_main","_memory","_cfunc","_callcb","___indirect_function_table","_fflush","___start_em_asm","___stop_em_asm","onRuntimeInitialized"].forEach((prop) => {
   if (!Object.getOwnPropertyDescriptor(Module['ready'], prop)) {
     Object.defineProperty(Module['ready'], prop, {
       get: () => abort('You are getting ' + prop + ' on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js'),
@@ -80,8 +80,7 @@ function locateFile(path) {
 // Hooks that are implemented differently in different runtime environments.
 var read_,
     readAsync,
-    readBinary,
-    setWindowTitle;
+    readBinary;
 
 if (ENVIRONMENT_IS_SHELL) {
 
@@ -219,8 +218,6 @@ read_ = (url) => {
 
 // end include: web_or_worker_shell_read.js
   }
-
-  setWindowTitle = (title) => document.title = title;
 } else
 {
   throw new Error('environment detection error');
@@ -256,7 +253,7 @@ assert(typeof Module['filePackagePrefixURL'] == 'undefined', 'Module.filePackage
 assert(typeof Module['read'] == 'undefined', 'Module.read option was removed (modify read_ in JS)');
 assert(typeof Module['readAsync'] == 'undefined', 'Module.readAsync option was removed (modify readAsync in JS)');
 assert(typeof Module['readBinary'] == 'undefined', 'Module.readBinary option was removed (modify readBinary in JS)');
-assert(typeof Module['setWindowTitle'] == 'undefined', 'Module.setWindowTitle option was removed (modify setWindowTitle in JS)');
+assert(typeof Module['setWindowTitle'] == 'undefined', 'Module.setWindowTitle option was removed (modify emscripten_set_window_title in JS)');
 assert(typeof Module['TOTAL_MEMORY'] == 'undefined', 'Module.TOTAL_MEMORY has been renamed Module.INITIAL_MEMORY');
 legacyModuleProp('asm', 'wasmExports');
 legacyModuleProp('read', 'read_');
@@ -292,7 +289,6 @@ assert(!ENVIRONMENT_IS_SHELL, "shell environment detected but not enabled at bui
 
 var wasmBinary;
 if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];legacyModuleProp('wasmBinary', 'wasmBinary');
-var noExitRuntime = Module['noExitRuntime'] || true;legacyModuleProp('noExitRuntime', 'noExitRuntime');
 
 if (typeof WebAssembly != 'object') {
   abort('no native wasm support detected');
@@ -366,12 +362,6 @@ assert(typeof Int32Array != 'undefined' && typeof Float64Array !== 'undefined' &
 assert(!Module['wasmMemory'], 'Use of `wasmMemory` detected.  Use -sIMPORTED_MEMORY to define wasmMemory externally');
 assert(!Module['INITIAL_MEMORY'], 'Detected runtime INITIAL_MEMORY setting.  Use -sIMPORTED_MEMORY to define wasmMemory dynamically');
 
-// include: runtime_init_table.js
-// In regular non-RELOCATABLE mode the table is exported
-// from the wasm module and this will be assigned once
-// the exports are available.
-var wasmTable;
-// end include: runtime_init_table.js
 // include: runtime_stack_check.js
 // Initializes the stack cookie. Called at the startup of main and at the startup of each thread in pthreads mode.
 function writeStackCookie() {
@@ -426,12 +416,6 @@ var __ATEXIT__    = []; // functions called during shutdown
 var __ATPOSTRUN__ = []; // functions called after the main() is called
 
 var runtimeInitialized = false;
-
-var runtimeKeepaliveCounter = 0;
-
-function keepRuntimeAlive() {
-  return noExitRuntime || runtimeKeepaliveCounter > 0;
-}
 
 function preRun() {
   if (Module['preRun']) {
@@ -639,16 +623,17 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
 // Prefix of data URIs emitted by SINGLE_FILE and related options.
 var dataURIPrefix = 'data:application/octet-stream;base64,';
 
-// Indicates whether filename is a base64 data URI.
-function isDataURI(filename) {
-  // Prefix of data URIs emitted by SINGLE_FILE and related options.
-  return filename.startsWith(dataURIPrefix);
-}
+/**
+ * Indicates whether filename is a base64 data URI.
+ * @noinline
+ */
+var isDataURI = (filename) => filename.startsWith(dataURIPrefix);
 
-// Indicates whether filename is delivered via file protocol (as opposed to http/https)
-function isFileURI(filename) {
-  return filename.startsWith('file://');
-}
+/**
+ * Indicates whether filename is delivered via file protocol (as opposed to http/https)
+ * @noinline
+ */
+var isFileURI = (filename) => filename.startsWith('file://');
 // end include: URIUtils.js
 function createExportWrapper(name) {
   return function() {
@@ -761,11 +746,10 @@ function createWasm() {
   // performing other necessary setup
   /** @param {WebAssembly.Module=} module*/
   function receiveInstance(instance, module) {
-    var exports = instance.exports;
+    wasmExports = instance.exports;
 
-    exports = Asyncify.instrumentWasmExports(exports);
+    wasmExports = Asyncify.instrumentWasmExports(wasmExports);
 
-    wasmExports = exports;
     
 
     wasmMemory = wasmExports['memory'];
@@ -784,7 +768,7 @@ function createWasm() {
     addOnInit(wasmExports['__wasm_call_ctors']);
 
     removeRunDependency('wasm-instantiate');
-    return exports;
+    return wasmExports;
   }
   // wait for the pthread pool (if any)
   addRunDependency('wasm-instantiate');
@@ -931,6 +915,11 @@ function dbg(text) {
 // end include: runtime_debug.js
 // === Body ===
 
+var ASM_CONSTS = {
+  66280: () => { globalThis.wasmTable = wasmTable; }
+};
+
+
 // end include: preamble.js
 
   /** @constructor */
@@ -966,6 +955,8 @@ function dbg(text) {
       default: abort(`invalid type for getValue: ${type}`);
     }
   }
+
+  var noExitRuntime = Module['noExitRuntime'] || true;
 
   var ptrToString = (ptr) => {
       assert(typeof ptr === 'number');
@@ -1003,8 +994,48 @@ function dbg(text) {
       }
     };
 
-  var _emscripten_memcpy_big = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
-  _emscripten_memcpy_big.sig = 'vppp';
+  var readEmAsmArgsArray = [];
+  var readEmAsmArgs = (sigPtr, buf) => {
+      // Nobody should have mutated _readEmAsmArgsArray underneath us to be something else than an array.
+      assert(Array.isArray(readEmAsmArgsArray));
+      // The input buffer is allocated on the stack, so it must be stack-aligned.
+      assert(buf % 16 == 0);
+      readEmAsmArgsArray.length = 0;
+      var ch;
+      // Most arguments are i32s, so shift the buffer pointer so it is a plain
+      // index into HEAP32.
+      while (ch = HEAPU8[sigPtr++]) {
+        var chr = String.fromCharCode(ch);
+        var validChars = ['d', 'f', 'i', 'p'];
+        assert(validChars.includes(chr), `Invalid character ${ch}("${chr}") in readEmAsmArgs! Use only [${validChars}], and do not specify "v" for void return argument.`);
+        // Floats are always passed as doubles, so all types except for 'i'
+        // are 8 bytes and require alignment.
+        var wide = (ch != 105);
+        wide &= (ch != 112);
+        buf += wide && (buf % 8) ? 4 : 0;
+        readEmAsmArgsArray.push(
+          // Special case for pointers under wasm64 or CAN_ADDRESS_2GB mode.
+          ch == 112 ? HEAPU32[((buf)>>2)] :
+          ch == 105 ?
+            HEAP32[((buf)>>2)] :
+            HEAPF64[((buf)>>3)]
+        );
+        buf += wide ? 8 : 4;
+      }
+      return readEmAsmArgsArray;
+    };
+  var runEmAsmFunction = (code, sigPtr, argbuf) => {
+      var args = readEmAsmArgs(sigPtr, argbuf);
+      assert(ASM_CONSTS.hasOwnProperty(code), `No EM_ASM constant found at address ${code}.  The loaded WebAssembly file is likely out of sync with the generated JavaScript.`);
+      return ASM_CONSTS[code].apply(null, args);
+    };
+  var _emscripten_asm_const_int = (code, sigPtr, argbuf) => {
+      return runEmAsmFunction(code, sigPtr, argbuf);
+    };
+  _emscripten_asm_const_int.sig = 'ippp';
+
+  var _emscripten_memcpy_js = (dest, src, num) => HEAPU8.copyWithin(dest, src, src + num);
+  _emscripten_memcpy_js.sig = 'vppp';
 
   var getHeapMax = () =>
       // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
@@ -1181,7 +1212,8 @@ function dbg(text) {
   varargs:undefined,
   get() {
         assert(SYSCALLS.varargs != undefined);
-        var ret = HEAP32[((SYSCALLS.varargs)>>2)];
+        // the `+` prepended here is necessary to convince the JSCompiler that varargs is indeed a number.
+        var ret = HEAP32[((+SYSCALLS.varargs)>>2)];
         SYSCALLS.varargs += 4;
         return ret;
       },
@@ -1210,7 +1242,7 @@ function dbg(text) {
 
   async function _jfunc(x) {
       console.log('jfunc called with', x);
-      return x * x;
+      return Promise.resolve(x + 1);
     }
   _jfunc.sig = 'ii';
   _jfunc.isAsync = true;
@@ -1242,6 +1274,9 @@ function dbg(text) {
     };
   
   
+  var runtimeKeepaliveCounter = 0;
+  var keepRuntimeAlive = () => noExitRuntime || runtimeKeepaliveCounter > 0;
+  
   var _proc_exit = (code) => {
       EXITSTATUS = code;
       if (!keepRuntimeAlive()) {
@@ -1251,6 +1286,7 @@ function dbg(text) {
       quit_(code, new ExitStatus(code));
     };
   _proc_exit.sig = 'vi';
+  
   /** @suppress {duplicate } */
   /** @param {boolean|number=} implicit */
   var exitJS = (status, implicit) => {
@@ -1269,6 +1305,7 @@ function dbg(text) {
     };
   var _exit = exitJS;
   _exit.sig = 'vi';
+  
   
   var maybeExit = () => {
       if (!keepRuntimeAlive()) {
@@ -1299,6 +1336,7 @@ function dbg(text) {
         'j': 'i64',
         'f': 'f32',
         'd': 'f64',
+        'e': 'externref',
         'p': 'i32',
       };
       var type = {
@@ -1324,15 +1362,14 @@ function dbg(text) {
   runtimeKeepalivePop.sig = 'v';
   var Asyncify = {
   instrumentWasmImports(imports) {
-        var importPatterns = [/^jfunc$/,/^invoke_.*$/,/^fd_sync$/,/^__wasi_fd_sync$/,/^__asyncjs__.*$/,/^emscripten_promise_await$/,/^emscripten_idb_load$/,/^emscripten_idb_store$/,/^emscripten_idb_delete$/,/^emscripten_idb_exists$/,/^emscripten_idb_load_blob$/,/^emscripten_idb_store_blob$/,/^emscripten_sleep$/,/^emscripten_wget_data$/,/^emscripten_scan_registers$/,/^emscripten_lazy_load_code$/,/^_load_secondary_module$/,/^emscripten_fiber_swap$/,/^SDL_Delay$/,/^jfunc$/];
+        var importPattern = /^(jfunc|atest|invoke_.*|__asyncjs__.*)$/;
   
         for (var x in imports) {
           (function(x) {
             var original = imports[x];
             var sig = original.sig;
             if (typeof original == 'function') {
-              var isAsyncifyImport = original.isAsync ||
-                                     importPatterns.some(pattern => !!x.match(pattern));
+              var isAsyncifyImport = original.isAsync || importPattern.test(x);
               // Wrap async imports with a suspending WebAssembly function.
               if (isAsyncifyImport) {
                 assert(sig, `Missing __sig for ${x}`);
@@ -1351,7 +1388,7 @@ function dbg(text) {
         }
       },
   instrumentWasmExports(exports) {
-        var exportPatterns = [/^cfunc$/,/^main$/,/^__main_argc_argv$/,/^_ZN10emscripten8internal5async.*$/];
+        var exportPattern = /^(cfunc|callcb|main|__main_argc_argv|_ZN10emscripten8internal5async.*)$/;
         Asyncify.asyncExports = new Set();
         var ret = {};
         for (var x in exports) {
@@ -1359,7 +1396,7 @@ function dbg(text) {
             var original = exports[x];
             if (typeof original == 'function') {
               // Wrap all exports with a promising WebAssembly function.
-              var isAsyncifyExport = exportPatterns.some(pattern => !!x.match(pattern));
+              var isAsyncifyExport = exportPattern.test(x);
               if (isAsyncifyExport) {
                 Asyncify.asyncExports.add(original);
                 original = Asyncify.makeAsyncFunction(original);
@@ -1378,24 +1415,22 @@ function dbg(text) {
   isAsyncExport(func) {
         return Asyncify.asyncExports && Asyncify.asyncExports.has(func);
       },
-  handleSleep(startAsync) {
+  handleAsync:async (startAsync) => {
         
-        var promise = new Promise((resolve) => {
-          startAsync(resolve);
-        });
-        promise.finally(() => {
+        try {
+          return await startAsync();
+        } finally {
           
-        });
-        return promise;
+        }
       },
-  handleAsync(startAsync) {
-        return Asyncify.handleSleep((wakeUp) => {
-          // TODO: add error handling as a second param when handleSleep implements it.
-          startAsync().then(wakeUp);
-        });
+  handleSleep(startAsync) {
+        return Asyncify.handleAsync(() => (
+          new Promise((wakeUp) => startAsync(wakeUp))
+        ));
       },
   makeAsyncFunction(original) {
-        var type = WebAssembly.Function.type(original);
+        // TODO: remove `WebAssembly.Function.type` call when the new API is ready on all the testers.
+        var type = original.type ? original.type() : WebAssembly.Function.type(original);
         var parameters = type.parameters;
         var results = type.results;
         assert(results.length !== 0, 'There must be a return result')
@@ -1408,6 +1443,191 @@ function dbg(text) {
           { promising : 'first' });
       },
   };
+
+  var uleb128Encode = (n, target) => {
+      assert(n < 16384);
+      if (n < 128) {
+        target.push(n);
+      } else {
+        target.push((n % 128) | 128, n >> 7);
+      }
+    };
+  
+  
+  var generateFuncType = (sig, target) => {
+      var sigRet = sig.slice(0, 1);
+      var sigParam = sig.slice(1);
+      var typeCodes = {
+        'i': 0x7f, // i32
+        'p': 0x7f, // i32
+        'j': 0x7e, // i64
+        'f': 0x7d, // f32
+        'd': 0x7c, // f64
+        'e': 0x6f, // externref
+      };
+  
+      // Parameters, length + signatures
+      target.push(0x60 /* form: func */);
+      uleb128Encode(sigParam.length, target);
+      for (var i = 0; i < sigParam.length; ++i) {
+        assert(sigParam[i] in typeCodes, 'invalid signature char: ' + sigParam[i]);
+        target.push(typeCodes[sigParam[i]]);
+      }
+  
+      // Return values, length + signatures
+      // With no multi-return in MVP, either 0 (void) or 1 (anything else)
+      if (sigRet == 'v') {
+        target.push(0x00);
+      } else {
+        target.push(0x01, typeCodes[sigRet]);
+      }
+    };
+  var convertJsFunctionToWasm = (func, sig) => {
+  
+      assert(!sig.includes('j'), 'i64 not permitted in function signatures when WASM_BIGINT is disabled');
+  
+      // If the type reflection proposal is available, use the new
+      // "WebAssembly.Function" constructor.
+      // Otherwise, construct a minimal wasm module importing the JS function and
+      // re-exporting it.
+      if (typeof WebAssembly.Function == "function") {
+        return new WebAssembly.Function(sigToWasmTypes(sig), func);
+      }
+  
+      // The module is static, with the exception of the type section, which is
+      // generated based on the signature passed in.
+      var typeSectionBody = [
+        0x01, // count: 1
+      ];
+      generateFuncType(sig, typeSectionBody);
+  
+      // Rest of the module is static
+      var bytes = [
+        0x00, 0x61, 0x73, 0x6d, // magic ("\0asm")
+        0x01, 0x00, 0x00, 0x00, // version: 1
+        0x01, // Type section code
+      ];
+      // Write the overall length of the type section followed by the body
+      uleb128Encode(typeSectionBody.length, bytes);
+      bytes.push.apply(bytes, typeSectionBody);
+  
+      // The rest of the module is static
+      bytes.push(
+        0x02, 0x07, // import section
+          // (import "e" "f" (func 0 (type 0)))
+          0x01, 0x01, 0x65, 0x01, 0x66, 0x00, 0x00,
+        0x07, 0x05, // export section
+          // (export "f" (func 0 (type 0)))
+          0x01, 0x01, 0x66, 0x00, 0x00,
+      );
+  
+      // We can compile this wasm module synchronously because it is very small.
+      // This accepts an import (at "e.f"), that it reroutes to an export (at "f")
+      var module = new WebAssembly.Module(new Uint8Array(bytes));
+      var instance = new WebAssembly.Instance(module, { 'e': { 'f': func } });
+      var wrappedFunc = instance.exports['f'];
+      return wrappedFunc;
+    };
+  
+  var wasmTableMirror = [];
+  
+  var wasmTable;
+  var getWasmTableEntry = (funcPtr) => {
+      var func = wasmTableMirror[funcPtr];
+      if (!func) {
+        if (funcPtr >= wasmTableMirror.length) wasmTableMirror.length = funcPtr + 1;
+        wasmTableMirror[funcPtr] = func = wasmTable.get(funcPtr);
+        if (Asyncify.isAsyncExport(func)) {
+          wasmTableMirror[funcPtr] = func = Asyncify.makeAsyncFunction(func);
+        }
+      }
+      return func;
+    };
+  
+  var updateTableMap = (offset, count) => {
+      if (functionsInTableMap) {
+        for (var i = offset; i < offset + count; i++) {
+          var item = getWasmTableEntry(i);
+          // Ignore null values.
+          if (item) {
+            functionsInTableMap.set(item, i);
+          }
+        }
+      }
+    };
+  
+  var functionsInTableMap;
+  
+  var getFunctionAddress = (func) => {
+      // First, create the map if this is the first use.
+      if (!functionsInTableMap) {
+        functionsInTableMap = new WeakMap();
+        updateTableMap(0, wasmTable.length);
+      }
+      return functionsInTableMap.get(func) || 0;
+    };
+  
+  
+  var freeTableIndexes = [];
+  
+  var getEmptyTableSlot = () => {
+      // Reuse a free index if there is one, otherwise grow.
+      if (freeTableIndexes.length) {
+        return freeTableIndexes.pop();
+      }
+      // Grow the table
+      try {
+        wasmTable.grow(1);
+      } catch (err) {
+        if (!(err instanceof RangeError)) {
+          throw err;
+        }
+        throw 'Unable to grow wasm table. Set ALLOW_TABLE_GROWTH.';
+      }
+      return wasmTable.length - 1;
+    };
+  
+  
+  
+  var setWasmTableEntry = (idx, func) => {
+      wasmTable.set(idx, func);
+      // With ABORT_ON_WASM_EXCEPTIONS wasmTable.get is overriden to return wrapped
+      // functions so we need to call it here to retrieve the potential wrapper correctly
+      // instead of just storing 'func' directly into wasmTableMirror
+      wasmTableMirror[idx] = wasmTable.get(idx);
+    };
+  
+  /** @param {string=} sig */
+  var addFunction = (func, sig) => {
+      assert(typeof func != 'undefined');
+      // Check if the function is already in the table, to ensure each function
+      // gets a unique index.
+      var rtn = getFunctionAddress(func);
+      if (rtn) {
+        return rtn;
+      }
+  
+      // It's not in the table, add it now.
+  
+      var ret = getEmptyTableSlot();
+  
+      // Set the new value.
+      try {
+        // Attempting to call this with JS function will cause of table.set() to fail
+        setWasmTableEntry(ret, func);
+      } catch (err) {
+        if (!(err instanceof TypeError)) {
+          throw err;
+        }
+        assert(typeof sig != 'undefined', 'Missing signature argument to addFunction: ' + func);
+        var wrapped = convertJsFunctionToWasm(func, sig);
+        setWasmTableEntry(ret, wrapped);
+      }
+  
+      functionsInTableMap.set(func, ret);
+  
+      return ret;
+    };
 
   var getCFunc = (ident) => {
       var func = Module['_' + ident]; // closure exported function
@@ -1560,19 +1780,39 @@ function dbg(text) {
       ret = onDone(ret);
       return ret;
     };
+
+  
+  
+    /**
+     * @param {string=} returnType
+     * @param {Array=} argTypes
+     * @param {Object=} opts
+     */
+  var cwrap = (ident, returnType, argTypes, opts) => {
+      return function() {
+        return ccall(ident, returnType, argTypes, arguments, opts);
+      }
+    };
 function checkIncomingModuleAPI() {
   ignoredModuleProp('fetchSettings');
 }
 var wasmImports = {
-  emscripten_memcpy_big: _emscripten_memcpy_big,
+  /** @export */
+  emscripten_asm_const_int: _emscripten_asm_const_int,
+  /** @export */
+  emscripten_memcpy_js: _emscripten_memcpy_js,
+  /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
+  /** @export */
   fd_write: _fd_write,
+  /** @export */
   jfunc: _jfunc
 };
 Asyncify.instrumentWasmImports(wasmImports);
 var wasmExports = createWasm();
 var ___wasm_call_ctors = createExportWrapper('__wasm_call_ctors');
 var _cfunc = Module['_cfunc'] = createExportWrapper('cfunc');
+var _callcb = Module['_callcb'] = createExportWrapper('callcb');
 var ___errno_location = createExportWrapper('__errno_location');
 var _fflush = Module['_fflush'] = createExportWrapper('fflush');
 var _malloc = createExportWrapper('malloc');
@@ -1592,6 +1832,8 @@ var dynCall_jiji = Module['dynCall_jiji'] = createExportWrapper('dynCall_jiji');
 // === Auto-generated postamble setup entry stuff ===
 
 Module['ccall'] = ccall;
+Module['cwrap'] = cwrap;
+Module['addFunction'] = addFunction;
 var missingLibrarySymbols = [
   'writeI53ToI64',
   'writeI53ToI64Clamped',
@@ -1621,7 +1863,7 @@ var missingLibrarySymbols = [
   'getCallstack',
   'emscriptenLog',
   'convertPCtoSourceLocation',
-  'readEmAsmArgs',
+  'runMainThreadEmAsm',
   'jstoi_q',
   'jstoi_s',
   'getExecutableName',
@@ -1630,7 +1872,6 @@ var missingLibrarySymbols = [
   'dynCallLegacy',
   'getDynCaller',
   'dynCall',
-  'safeSetTimeout',
   'asmjsMangle',
   'asyncLoad',
   'alignMemory',
@@ -1642,14 +1883,6 @@ var missingLibrarySymbols = [
   'STACK_ALIGN',
   'POINTER_SIZE',
   'ASSERTIONS',
-  'cwrap',
-  'uleb128Encode',
-  'generateFuncType',
-  'convertJsFunctionToWasm',
-  'getEmptyTableSlot',
-  'updateTableMap',
-  'getFunctionAddress',
-  'addFunction',
   'removeFunction',
   'reallyNegative',
   'unSign',
@@ -1718,6 +1951,7 @@ var missingLibrarySymbols = [
   'wasiRightsToMuslOFlags',
   'wasiOFlagsToMuslOFlags',
   'createDyncallWrapper',
+  'safeSetTimeout',
   'setImmediateWrapped',
   'clearImmediateWrapped',
   'polyfillSetImmediate',
@@ -1734,6 +1968,9 @@ var missingLibrarySymbols = [
   'FS_modeStringToFlags',
   'FS_getMode',
   'FS_stdin_getChar',
+  'FS_createDataFile',
+  'FS_unlink',
+  'FS_mkdirTree',
   '_setNetworkCallback',
   'heapObjectForWebGLType',
   'heapAccessShiftForWebGLHeap',
@@ -1757,7 +1994,6 @@ var missingLibrarySymbols = [
   'SDL_unicode',
   'SDL_ttfContext',
   'SDL_audio',
-  'GLFW_Window',
   'ALLOC_NORMAL',
   'ALLOC_STACK',
   'allocate',
@@ -1777,19 +2013,15 @@ var unexportedSymbols = [
   'removeRunDependency',
   'FS_createFolder',
   'FS_createPath',
-  'FS_createDataFile',
   'FS_createLazyFile',
   'FS_createLink',
   'FS_createDevice',
   'FS_readFile',
-  'FS_unlink',
   'out',
   'err',
   'callMain',
   'abort',
-  'keepRuntimeAlive',
   'wasmMemory',
-  'wasmTable',
   'wasmExports',
   'stackAlloc',
   'stackSave',
@@ -1816,15 +2048,26 @@ var unexportedSymbols = [
   'warnOnce',
   'UNWIND_CACHE',
   'readEmAsmArgsArray',
+  'readEmAsmArgs',
+  'runEmAsmFunction',
   'handleException',
+  'keepRuntimeAlive',
   'runtimeKeepalivePush',
   'runtimeKeepalivePop',
   'callUserCallback',
   'maybeExit',
+  'wasmTable',
+  'noExitRuntime',
   'getCFunc',
+  'uleb128Encode',
   'sigToWasmTypes',
+  'generateFuncType',
+  'convertJsFunctionToWasm',
   'freeTableIndexes',
   'functionsInTableMap',
+  'getEmptyTableSlot',
+  'updateTableMap',
+  'getFunctionAddress',
   'setValue',
   'getValue',
   'PATH',
@@ -1873,7 +2116,6 @@ var unexportedSymbols = [
   'Fibers',
   'SDL',
   'SDL_gfx',
-  'GLFW',
   'allocateUTF8',
   'allocateUTF8OnStack',
 ];

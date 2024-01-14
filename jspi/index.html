@@ -9,16 +9,46 @@
   <script type="module">
     import ModuleFactory from './cfunc.mjs';
     (async function() {
-      // Workaround for JSPI API change.
-      if (!WebAssembly.Function.type) {
-        WebAssembly.Function.type = function(f) {
-          return f.type();
-        }
-      }
+      // // Workaround for JSPI API change.
+      // if (!WebAssembly.Function.type) {
+      //   WebAssembly.Function.type = function(f) {
+      //     return f.type();
+      //   }
+      // }
       
       const module = await ModuleFactory();
-      const result = module.ccall('cfunc', 'number', ['number'], [8], { async: true });
+
+      WebAssembly.Function = new Proxy(WebAssembly.Function, {
+        construct(target, args) {
+          const AsyncFunction = (async function(){}).constructor;
+          if (args[1] instanceof AsyncFunction) {
+            // Modify arguments as done for exports.
+            // https://github.com/emscripten-core/emscripten/blob/3b0eb96d37e3cfac8b3b8a68f564d94e349dc837/src/library_async.js#L62-L67
+            args[0] = structuredClone(args[0]);
+            args[0].parameters.unshift('externref');
+            args[2] = Object.assign({ suspending: 'first' }, args[2]);
+          }
+          const instance = Reflect.construct(target, args);
+          console.log('WebAssembly.Function arguments', args);
+          console.log('WebAssembly.Function instance', instance);
+          return instance;
+        }
+      });
+
+      const result = module.ccall('cfunc', 'number', ['number'], [6], { async: true });
       console.log('result:', await result);
+
+      const callcb = module.cwrap('callcb', 'number', ['number', 'number'], { async: true });
+
+      // Regular function works.
+      // await callcb(3, module.addFunction((x) => x * x, 'ii')).then((result) => {
+      //   console.log('regular callback:', result);
+      // });
+
+      // Async function fails.
+      await callcb(3, module.addFunction(async (x) => x * x, 'ii')).then((result) => {
+        console.log('async callback:', result);
+      });
     })();
   </script>
 </body>
