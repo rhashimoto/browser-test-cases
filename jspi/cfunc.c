@@ -14,10 +14,7 @@ void relay(sqlite3_context *ctx, int argc, sqlite3_value **argv) {
 
 sqlite3 *db;
 const char* sql =
-  // Call the asynchronous JavaScript function a bunch of times.
-  "WITH RECURSIVE cnt(x) AS\n"
-  "(SELECT 0 UNION ALL SELECT x+1 FROM cnt LIMIT 100000)\n"
-  "SELECT SUM(relay(x)) FROM cnt;"
+  "SELECT relay(42) FROM cnt;"
   ;
 
 // This optional callback just prints out the result to make
@@ -31,7 +28,7 @@ int callback(void *pAppData, int argc, char **argv, char **azColName) {
 
 // This is the C function launched from JavaScript to perform the query.
 EMSCRIPTEN_KEEPALIVE int cfunc(int count) {
-  int rc = sqlite3_exec(db, sql, callback, NULL, NULL);
+  int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
   return rc;
 }
 

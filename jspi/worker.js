@@ -11,8 +11,10 @@ Promise.resolve().then(async () => {
   const module = await moduleFactory();
 
   const start = performance.now();
-  const result = await module.ccall('cfunc', 'number', ['number'], [10_000_000], { async: true });
+  for (let i = 0; i < 10_000; ++i) {
+    const result = await module.ccall('cfunc', 'number', ['number'], [0], { async: true });
+  }
   const end = performance.now();
-  console.log(Math.trunc(end - start) / 1000, result);
+  console.log(Math.trunc(end - start) / 1000);
   postMessage(`${build}: ${Math.trunc(end - start) / 1000} seconds`);
 });
