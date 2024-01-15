@@ -2,7 +2,7 @@ addToLibrary({
 
   jfunc: function(x) {
     return Asyncify.handleAsync(async () => {
-      return Math.pow(2, -x);
+      return Math.pow(x, 2);
     });
   },
   jfunc__sig: 'dd',

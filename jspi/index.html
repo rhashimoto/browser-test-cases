@@ -6,6 +6,14 @@
 </head>
 <style>
   pre { margin: 0 }
+  div {
+    margin: 1em;
+    max-width: 6in;
+  }
+  button {
+    margin: 1em;
+    font-size: 1.5em;
+  }
 </style>
 <body>
   <div>
@@ -22,14 +30,17 @@
           const url = `./worker.js?build=${build}`;
           const worker = new Worker(url);
 
-          // Wait for the response.
+          // Display messages from the Worker until receiving null.
           await new Promise((resolve) => {
             worker.addEventListener('message', (event) => {
-              // Show the timing on the page.
-              const pre = document.createElement('pre');
-              pre.textContent = event.data;
-              document.body.appendChild(pre);
-              resolve();
+              if (event.data) {
+                // Show the timing on the page.
+                const pre = document.createElement('pre');
+                pre.textContent = event.data;
+                document.body.appendChild(pre);
+              } else {
+                resolve();
+              }
             });
           });
           worker.terminate();
