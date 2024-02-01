@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>createSyncAccessHandle bug?</title>
+  <style>
+    pre {
+      text-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    const worker = new Worker('worker.js', { type: 'module' });
+    worker.onmessage = (event) => {
+      const element = document.createElement('pre');
+      element.textContent = event.data;
+      document.body.appendChild(element);
+    };
+  </script>
+</body>
+</html>
