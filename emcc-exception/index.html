@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>emcc exception test</title>
+  <style>
+    pre {
+      word-wrap: wrap;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>emcc exception test</h1>
+  Open console to see log.
+  <script type="module">
+    import moduleFactory from './cfunc.mjs';
+
+    (async function() {
+      const module = await moduleFactory();
+
+      for (let i = 0; i < 4; ++i) {
+        try {
+          await module._cfunc();
+        } catch (e) {
+          console.log(e);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
