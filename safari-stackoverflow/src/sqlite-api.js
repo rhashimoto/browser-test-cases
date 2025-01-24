@@ -728,8 +728,16 @@ export function Factory(Module) {
     return async function(stmt) {
       verifyStatement(stmt);
 
-      // Allow retry operations.
-      const rc = await retry(() => f(stmt));
+      // The following code is replaced for the Safari stack overflow test.
+      // The real wa-sqlite code uses retries for OPFSCoopSyncVFS. The
+      // naming sounds like it is recursive (it really isn't) so this is
+      // a red herring when tracking down a stack problem.
+
+      // // Allow retry operations.
+      // const rc = await retry(() => f(stmt));
+
+      // Here's the replacement code that just makes a simple call.
+      const rc = await f(stmt);
 
       return check(fname, rc, mapStmtToDB.get(stmt), [SQLite.SQLITE_ROW, SQLite.SQLITE_DONE]);
     };
