@@ -8,6 +8,9 @@ The test uses [wa-sqlite](https://github.com/rhashimoto/wa-sqlite), providing SQ
 compiled to WebAssembly using Emscripten with Asyncify. The test mostly runs in a
 Worker where it creates a database and attempts 50,000 queries.
 
+Emscripten optimization is set to -Oz. Settings -O2, -O3, -Os, and -Oz all induce
+the problem, -O0 and -O1 do not.
+
 ## Expected results
 The test should execute 50,000 queries with progress logged to the page.
 
