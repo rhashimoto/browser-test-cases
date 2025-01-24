@@ -15,6 +15,8 @@ the problem, -O0 and -O1 do not.
 The test should execute 50,000 queries with progress logged to the page.
 
 ## Actual results
+All results on a M2 Mac mini.
+
 | Browser | Result |
 |---|---|
 | Chrome 132 |✅|
