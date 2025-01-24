@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Safari stack overflow test case</title>
+  <style>
+    pre {
+      display: block;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Safari stack overflow test case</h1>
+  <div>See <a href="https://bugs.webkit.org/show_bug.cgi?id=284752" target="_blank" rel="noopener noreferrer">WebKit bug</a></div>
+  <hr>
+
+  <script type="module">
+    const TIME_FORMAT = {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      fractionalSecondDigits: 3
+    };
+
+    const worker = new Worker('worker.js', { type: 'module' });
+    worker.addEventListener('message', (event) => {
+      // Display the message from the worker.
+      const timestamp = new Date().toLocaleTimeString(undefined, TIME_FORMAT);
+      const pre = document.createElement('pre');
+      pre.textContent = `${timestamp} ${event.data}`;
+      document.body.appendChild(pre);
+    });
+  </script>
+</body>
+</html>
