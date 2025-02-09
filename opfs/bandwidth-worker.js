@@ -13,19 +13,25 @@ const CHUNK_SIZE = 2**20;
 
     postMessage('Creating file...');
     const fileHandle = await createFile(root);
-    onFinally.push(() => root.removeEntry(FILENAME));
+    onFinally.push(() => {
+      postMessage('Removing file...');
+      root.removeEntry(FILENAME);
+    });
     postMessage(`${FILE_SIZE} bytes written to ${FILENAME}.`);
 
     for (let i = 0; i < 3; i++) {
       postMessage('Reading with FileSystemSyncAccessHandle...');
       await readWithAccessHandle(fileHandle);
-      postMessage('Read complete.')
     }
 
     for (let i = 0; i < 3; i++) {
-      postMessage('Reading with File...');
+      postMessage('Reading with Blob.stream()...');
       await readWithFile(fileHandle);
-      postMessage('Read complete.')
+    }
+
+    for (let i = 0; i < 3; i++) {
+      postMessage('Reading with Blob.getReader()...');
+      await readWithReader(fileHandle);
     }
   } catch (e) {
     postMessage(`Error: ${e.message}\n${e.stack}`);
@@ -37,6 +43,7 @@ const CHUNK_SIZE = 2**20;
         console.warn(e);
       }
     }
+    postMessage('Done.');
   }
 })();
 
@@ -91,6 +98,27 @@ async function readWithFile(fileHandle) {
         nBytesRead += chunk.byteLength;
       }
     }, new CountQueuingStrategy({ highWaterMark: 100 })));
+  const endTime = performance.now();
+  const duration = Math.round(endTime - startTime);
+  const bw = (FILE_SIZE / 2**30) / (duration / 1000);
+  postMessage(`Read ${nBytesRead} bytes in ${duration} ms (${bw.toFixed(2)} GB/s).`);
+}
+
+/**
+ * @param {FileSystemFileHandle} fileHandle
+ */
+async function readWithReader(fileHandle) {
+  const startTime = performance.now();
+  const file = await fileHandle.getFile();
+  const reader = file.stream().getReader();
+
+  let nBytesRead = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    nBytesRead += value.byteLength;
+  }
+
   const endTime = performance.now();
   const duration = Math.round(endTime - startTime);
   const bw = (FILE_SIZE / 2**30) / (duration / 1000);
